@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dynamic QR</title>
+  <style>
+    :root { --bg:#f5f7fb; --card:#fff; --ink:#1b2430; --muted:#6b7686; --accent:#2f6fed; --line:#e3e8f0; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: system-ui, sans-serif; background:var(--bg); color:var(--ink); }
+    main { max-width: 720px; margin: 0 auto; padding: 32px 16px; }
+    h1 { margin: 0 0 4px; font-size: 1.6rem; }
+    p.sub { margin: 0 0 24px; color: var(--muted); }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+    label { display:block; font-weight:600; margin-bottom:6px; }
+    input[type=url] { width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:8px; font-size:1rem; }
+    button { margin-top:12px; padding:10px 16px; border:0; border-radius:8px; background:var(--accent); color:#fff; font-size:1rem; cursor:pointer; }
+    button.secondary { background:#fff; color:var(--accent); border:1px solid var(--accent); }
+    #result { display:none; text-align:center; }
+    #result img { width:220px; height:220px; image-rendering: pixelated; }
+    code { background:#eef2f9; padding:2px 6px; border-radius:6px; word-break: break-all; }
+    .err { color:#b3261e; margin-top:10px; }
+    .row { display:flex; gap:8px; flex-wrap:wrap; justify-content:center; }
+    .stat { font-size:1.2rem; margin-top:10px; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Dynamic QR Generator</h1>
+  <p class="sub">QR ek baar print karo, destination baad me kabhi bhi badlo.</p>
+
+  <section class="card">
+    <label for="url">Destination URL</label>
+    <input id="url" type="url" placeholder="https://example.com/menu">
+    <button id="create">Generate QR</button>
+    <div id="err" class="err"></div>
+  </section>
+
+  <section class="card" id="result">
+    <img id="qr" alt="QR code">
+    <p>Short link: <code id="short"></code></p>
+    <div class="stat">Scans: <strong id="scans">0</strong></div>
+    <div style="margin-top:16px; text-align:left">
+      <label for="newurl">Destination badlo (QR wahi rahega)</label>
+      <input id="newurl" type="url" placeholder="https://new-destination.com">
+      <div class="row" style="justify-content:flex-start">
+        <button id="update" class="secondary">Update destination</button>
+        <button id="refresh" class="secondary">Refresh scans</button>
+      </div>
+      <div id="msg" style="margin-top:8px; color:#1a7f37"></div>
+    </div>
+  </section>
+</main>
+
+<script>
+  let code = null;
+  const $ = (id) => document.getElementById(id);
+
+  async function api(path, opts) {
+    const res = await fetch(path, opts);
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || "Request failed");
+    return body;
+  }
+
+  $("create").onclick = async () => {
+    $("err").textContent = "";
+    try {
+      const d = await api("/api/create", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({url: $("url").value})
+      });
+      code = d.code;
+      $("qr").src = d.qr_image + "?t=" + Date.now();
+      $("short").textContent = d.short_url;
+      $("newurl").value = d.url;
+      $("scans").textContent = "0";
+      $("msg").textContent = "";
+      $("result").style.display = "block";
+    } catch (e) { $("err").textContent = e.message; }
+  };
+
+  $("update").onclick = async () => {
+    try {
+      await api("/api/update/" + code, {
+        method: "PUT",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({url: $("newurl").value})
+      });
+      $("msg").textContent = "Destination update ho gaya.";
+    } catch (e) { $("msg").style.color = "#b3261e"; $("msg").textContent = e.message; }
+  };
+
+  $("refresh").onclick = async () => {
+    try {
+      const s = await api("/api/stats/" + code);
+      $("scans").textContent = s.scans;
+    } catch (e) { $("msg").textContent = e.message; }
+  };
+</script>
+</body>
+</html>

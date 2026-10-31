@@ -1,0 +1,17 @@
+services:
+  web:
+    build: .
+    image: dynamic-qr:1.0
+    container_name: dynamic-qr
+    ports:
+      - "5000:5000"
+    environment:
+      # Deploy karte waqt apna public URL yahan daalo, e.g. http://<EC2-IP>:5000
+      BASE_URL: ""
+      DB_PATH: /data/qr.db
+    volumes:
+      - qr_data:/data
+    restart: always
+
+volumes:
+  qr_data:
